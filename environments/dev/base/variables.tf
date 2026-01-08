@@ -8,3 +8,14 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+variable "container_apps_fqdn" {
+  description = "FQDN del Container Apps Environment"
+  type        = string
+  default     = "eneroapp-dev.eastus2.azurecontainerapps.io"
+}
+
+variable "waf_mode" {
+  description = "Modo WAF: Detection o Prevention"
+  type        = string
+  default     = "Detection"
+}

@@ -26,3 +26,13 @@ variable "subnet_private_prefix" {
   type        = string
   description = "CIDR para Private Endpoints"
 }
+variable "backend_internal_ports" {
+  description = "Puertos internos del Backend (no expuesto a internet)"
+  type        = list(number)
+  default     = [8080, 5000, 3000]
+  
+  validation {
+    condition     = alltrue([for p in var.backend_internal_ports : p >= 1 && p <= 65535])
+    error_message = "Puertos deben estar entre 1 y 65535."
+  }
+}
