@@ -9,8 +9,11 @@ output "app_gateway_id" {
   description = "ID del App Gateway"
   value       = module.app_gateway.app_gateway_id
 }
-
-output "waf_policy_id" {
-  description = "ID de la WAF Policy"
-  value       = module.app_gateway.waf_policy_id
+output "nat_gateway_public_ip" {
+  description = "IP publica del NAT Gateway (egress del Backend)"
+  value       = module.nat_gateway.nat_public_ip_address
+}
+output "nat_gateway_id" {
+  description = "ID del NAT Gateway"
+  value       = module.nat_gateway.nat_gateway_id
 }

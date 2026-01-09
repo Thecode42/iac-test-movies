@@ -7,7 +7,7 @@ resource "azurerm_resource_group" "rg_dev" {
   }
 
 }
-
+# Area de networking
 module "networking" {
   source              = "../../../modules/networking"
   resource_group_name = azurerm_resource_group.rg_dev.name
@@ -21,6 +21,22 @@ module "networking" {
   subnet_private_prefix = "10.0.2.0/24"
   tags                  = azurerm_resource_group.rg_dev.tags
 }
+module "nat_gateway" {
+  source = "../../../modules/networking/nat-gateway"
+
+  resource_group_name = azurerm_resource_group.rg_dev.name
+  location            = azurerm_resource_group.rg_dev.location
+  environment         = var.environment
+  tags                = azurerm_resource_group.rg_dev.tags
+
+  vnet_name         = module.networking.vnet_name
+  subnet_apps_id    = module.networking.subnet_apps_id
+  subnet_nat_prefix = "10.0.4.0/24"
+
+  depends_on = [module.networking]
+}
+
+# Area de Security
 module "app_gateway" {
   source = "../../../modules/security/app-gateway"
 

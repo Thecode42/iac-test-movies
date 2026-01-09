@@ -19,93 +19,23 @@ resource "azurerm_subnet" "subnet_app_gateway" {
   address_prefixes     = [var.subnet_appgw_prefix]
 }
 
-# WAF Policy - OWASP CRS v1.1
-resource "azurerm_web_application_firewall_policy" "waf_policy" {
-  name                = "wafpolicy-appgw-${var.environment}-${var.location}"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-
-  # Custom rule: Permitir health probes
-  custom_rules {
-    name     = "AllowHealthProbes"
-    enabled  = true
-    priority = 1
-    action   = "Allow"
-    rule_type = "MatchRule"
-
-    match_conditions {
-      match_variables {
-        variable_name = "RequestHeaders"
-      }
-      operator           = "Contains"
-      negation_condition = false
-      match_values       = ["HealthProbe", "AlwaysOn"]
-    }
-  }
-
-  # Managed Rules: OWASP CRS
-  managed_rules {
-    managed_rule_set {
-      version = "1.0"
-      type    = "OWASP"
-
-      rule_group_override {
-        rule_group_name = "REQUEST-921-PROTOCOL-ATTACK"
-      }
-
-      rule_group_override {
-        rule_group_name = "REQUEST-913-SCANNER-DETECTION"
-      }
-
-      rule_group_override {
-        rule_group_name = "REQUEST-942-APPLICATION-ATTACK-SQLI"
-      }
-
-      rule_group_override {
-        rule_group_name = "REQUEST-941-APPLICATION-ATTACK-XSS"
-      }
-
-      rule_group_override {
-        rule_group_name = "REQUEST-944-APPLICATION-ATTACK-JAVA"
-      }
-
-      rule_group_override {
-        rule_group_name = "MS-ThreatIntel-WebShells"
-      }
-    }
-  }
-
-  policy_settings {
-    enabled                          = true
-    mode                             = var.waf_mode
-    file_upload_limit_in_mb          = 10
-    request_body_inspect_limit_in_kb = 32
-  }
-
-  tags = merge(var.tags, {
-    "module" = "app-gateway"
-  })
-}
-
 # Application Gateway - Standard_WAFv2 SKU
 resource "azurerm_application_gateway" "app_gateway" {
   name                = "appgw-${var.environment}-${var.location}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  
-  # "Detection" o "Prevention"
-  waf_configuration {
-    enabled          = true
-    firewall_mode    = var.waf_mode 
-    rule_set_type    = "OWASP"
-    rule_set_version = "3.1"
-  }
-
   # SKU: Standard_WAFv2 (incluye WAF)
   sku {
     name     = "Standard_v2"
     tier     = "Standard_v2"
     capacity = var.app_gateway_capacity
+  }
+
+  waf_configuration {
+    enabled          = true
+    firewall_mode    = var.waf_mode
+    rule_set_type    = "OWASP"
+    rule_set_version = "3.2"
   }
 
   # Gateway IP Configuration
@@ -159,6 +89,8 @@ resource "azurerm_application_gateway" "app_gateway" {
     backend_http_settings_name = "bhsettings"
     priority                   = 1
   }
+  /*
+    # Activar cuando se tenga el container apps FQDN
   # Probe: Health check para Container Apps
   probe {
     name                = "health-probe"
@@ -168,6 +100,7 @@ resource "azurerm_application_gateway" "app_gateway" {
     timeout             = 10
     unhealthy_threshold = 3
     port                = var.backend_port
+    host                = var.container_apps_fqdn
     match {
       status_code = ["200-399"]
     }
@@ -182,13 +115,13 @@ resource "azurerm_application_gateway" "app_gateway" {
     probe_name                          = "health-probe"
     pick_host_name_from_backend_address = true
   }
+   */
   tags = merge(var.tags, {
     "module" = "app-gateway"
     "waf"    = "enabled"
   })
   depends_on = [
-    azurerm_subnet.subnet_app_gateway,
-    azurerm_web_application_firewall_policy.waf_policy
+    azurerm_subnet.subnet_app_gateway
   ]
   lifecycle {
     ignore_changes = [tags]
