@@ -7,7 +7,7 @@ resource "azurerm_virtual_network" "vnet" {
   tags                = var.tags
 }
 
-# Subnet para Container Apps Environment
+# Subnet para Container Apps Environment con delegacion
 # NOTA : Container Apps se le asigna una subnet delegada a Microsoft.App/environments para la gestion automatica.
 resource "azurerm_subnet" "snet_apps" {
   name                 = "snet-container-apps"
@@ -23,14 +23,19 @@ resource "azurerm_subnet" "snet_apps" {
     }
   }
 }
-
+# Subnet para Container Apps Environment  sin delegacion
+resource "azurerm_subnet" "snet_aca_env" {
+  name                 = "snet-aca-env"
+  resource_group_name  = var.resource_group_name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = [var.subnet_aca_env_prefix]
+}
 # Subnet para Private Endpoints en la Zona de Data and Secrets (ACR y Key Vault)
 resource "azurerm_subnet" "snet_private" {
   name                 = "snet-private-endpoints"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [var.subnet_private_prefix]
-  private_endpoint_network_policies = "Disabled"
 }
 
 # Network Security Group el Firewall Basico para la Subnet de Apps

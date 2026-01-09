@@ -31,11 +31,9 @@ resource "azurerm_application_gateway" "app_gateway" {
     capacity = var.app_gateway_capacity
   }
 
-  waf_configuration {
-    enabled          = true
-    firewall_mode    = var.waf_mode
-    rule_set_type    = "OWASP"
-    rule_set_version = "3.2"
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20170401S"  # TLS 1.2
   }
 
   # Gateway IP Configuration
@@ -157,6 +155,17 @@ resource "azurerm_network_security_group" "nsg_app_gateway" {
     source_port_range          = "*"
     destination_port_range     = "443"
     source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+  security_rule {
+    name                       = "AllowAppGwManagementPorts"
+    priority                   = 105
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "65200-65535"
+    source_address_prefix      = "GatewayManager"
     destination_address_prefix = "*"
   }
   # Permitir Azure Load Balancer health probes

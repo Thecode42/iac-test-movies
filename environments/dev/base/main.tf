@@ -17,6 +17,8 @@ module "networking" {
   vnet_address_space = ["10.0.0.0/16"]
   # Direcciones IP para el Container Apps
   subnet_apps_prefix = "10.0.0.0/23"
+  # Direcciones IP para el Container Apps Environment
+  subnet_aca_env_prefix = "10.0.2.0/25"
   # Direcciones IP para endpoints privados para recursos persistentes (ACR, Key Vault)
   subnet_private_prefix = "10.0.2.0/24"
   tags                  = azurerm_resource_group.rg_dev.tags
@@ -47,12 +49,68 @@ module "app_gateway" {
 
   vnet_name                    = module.networking.vnet_name
   subnet_appgw_prefix          = "10.0.3.0/24"
-  container_apps_fqdn          = var.container_apps_fqdn
+  container_apps_fqdn          = module.container_app_frontend.fqdn
   container_apps_subnet_prefix = "10.0.0.0/23"
   backend_port                 = 80
   health_probe_path            = "/"
-  app_gateway_capacity         = 2
+  app_gateway_capacity         = 1
   waf_mode                     = var.waf_mode
+
+  depends_on = [module.networking, module.nat_gateway]
+}
+
+# Container Apps Environment
+module "container_apps_env" {
+  source = "../../../modules/compute/container-apps-env"
+
+  resource_group_name = azurerm_resource_group.rg_dev.name
+  location            = azurerm_resource_group.rg_dev.location
+  environment         = var.environment
+  tags                = azurerm_resource_group.rg_dev.tags
+
+  subnet_apps_id = module.networking.subnet_aca_env_id
 
   depends_on = [module.networking]
 }
+
+# Frontend Container App (Angular)
+module "container_app_frontend" {
+  source = "../../../modules/compute/container-app"
+
+  resource_group_name          = azurerm_resource_group.rg_dev.name
+  container_app_environment_id = module.container_apps_env.container_app_environment_id
+  container_app_name           = "app-frontend-${var.environment}"
+  container_image              = var.frontend_image
+  cpu                          = "0.25"
+  memory                       = "0.5"
+  container_port               = 80
+  min_replicas                 = 0
+  max_replicas                 = 1
+  expose_publicly              = true
+  app_type                     = "frontend"
+  tags                         = azurerm_resource_group.rg_dev.tags
+  environment_variables        = {}
+
+  depends_on = [module.container_apps_env]
+}
+
+/* # Backend Container App (.NET 7.0)
+module "container_app_backend" {
+  source = "../../../modules/compute/container-app"
+
+  resource_group_name              = azurerm_resource_group.rg_dev.name
+  container_app_environment_id     = module.container_apps_env.container_app_environment_id
+  container_app_name               = "app-backend-${var.environment}"
+  container_image                  = var.backend_image
+  cpu                              = "0.5"
+  memory                           = "1"
+  container_port                   = 8080
+  min_replicas                     = 1
+  max_replicas                     = 2
+  expose_publicly                  = false
+  app_type                         = "backend"
+  tags                             = azurerm_resource_group.rg_dev.tags
+  environment_variables            = var.backend_environment_variables
+
+  depends_on = [module.container_apps_env]
+} */

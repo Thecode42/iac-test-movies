@@ -26,6 +26,10 @@ variable "subnet_private_prefix" {
   type        = string
   description = "CIDR para Private Endpoints"
 }
+variable "subnet_aca_env_prefix" {
+  type        = string
+  description = "CIDR para Container Apps Environment"
+}
 variable "backend_internal_ports" {
   description = "Puertos internos del Backend (no expuesto a internet)"
   type        = list(number)
