@@ -18,9 +18,9 @@ module "networking" {
   # Direcciones IP para el Container Apps
   subnet_apps_prefix = "10.0.0.0/23"
   # Direcciones IP para el Container Apps Environment
-  subnet_aca_env_prefix = "10.0.2.0/25"
+  subnet_aca_env_prefix = "10.0.2.0/24"
   # Direcciones IP para endpoints privados para recursos persistentes (ACR, Key Vault)
-  subnet_private_prefix = "10.0.2.0/24"
+  subnet_private_prefix = "10.0.3.0/24"
   tags                  = azurerm_resource_group.rg_dev.tags
 }
 module "nat_gateway" {
@@ -33,7 +33,7 @@ module "nat_gateway" {
 
   vnet_name         = module.networking.vnet_name
   subnet_apps_id    = module.networking.subnet_apps_id
-  subnet_nat_prefix = "10.0.4.0/24"
+  subnet_nat_prefix = "10.0.5.0/24"
 
   depends_on = [module.networking]
 }
@@ -48,7 +48,7 @@ module "app_gateway" {
   tags                = azurerm_resource_group.rg_dev.tags
 
   vnet_name                    = module.networking.vnet_name
-  subnet_appgw_prefix          = "10.0.3.0/24"
+  subnet_appgw_prefix          = "10.0.4.0/24"
   container_apps_fqdn          = module.container_app_frontend.fqdn
   container_apps_subnet_prefix = "10.0.0.0/23"
   backend_port                 = 80
