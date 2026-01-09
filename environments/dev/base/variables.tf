@@ -6,7 +6,7 @@ variable "location" {
 variable "environment" {
   description = "Entorno de despliegue"
   type        = string
-  default     = "dev"
+  default     = "uat"
 }
 variable "waf_mode" {
   description = "Modo WAF: Detection o Prevention"

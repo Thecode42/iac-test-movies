@@ -128,7 +128,7 @@ resource "azurerm_application_gateway" "app_gateway" {
 
 # NSG para App Gateway Subnet
 resource "azurerm_network_security_group" "nsg_app_gateway" {
-  name                = "nsg-appgw"
+  name                = "nsg-appgw-${var.environment}-${var.location}"
   location            = var.location
   resource_group_name = var.resource_group_name
 
