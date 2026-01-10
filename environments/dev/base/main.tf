@@ -16,7 +16,7 @@ module "networking" {
   vnet_name          = "vnet-movieapp-${var.environment}-${var.location}"
   vnet_address_space = ["10.0.0.0/16"]
   # Direcciones IP para el Container Apps
-  subnet_apps_prefix = "10.0.0.0/23"
+  subnet_apps_prefix = "10.0.6.0/23"
   # Direcciones IP para el Container Apps Environment
   subnet_aca_env_prefix = "10.0.2.0/23"
   # Direcciones IP para endpoints privados para recursos persistentes (ACR, Key Vault)
@@ -38,7 +38,7 @@ module "nat_gateway" {
   depends_on = [module.networking]
 }
 
-# Area de Security
+/* # Area de Security
 module "app_gateway" {
   source = "../../../modules/security/app-gateway"
 
@@ -47,17 +47,18 @@ module "app_gateway" {
   environment         = var.environment
   tags                = azurerm_resource_group.rg_dev.tags
 
-  vnet_name                    = module.networking.vnet_name
-  subnet_appgw_prefix          = "10.0.4.0/24"
-  container_apps_fqdn          = module.container_app_frontend.fqdn
-  container_apps_subnet_prefix = "10.0.0.0/23"
-  backend_port                 = 80
-  health_probe_path            = "/"
-  app_gateway_capacity         = 1
-  waf_mode                     = var.waf_mode
+  vnet_name             = module.networking.vnet_name
+  subnet_appgw_prefix   = "10.10.8.0/26"
+  subnet_appgw_prefix   = "10.10.1.0/24" # TEst
+  container_apps_fqdn   = module.container_app_frontend.fqdn
+  subnet_aca_env_prefix = module.networking.subnet_aca_env_cidr
+  backend_port          = 80
+  health_probe_path     = "/"
+  app_gateway_capacity  = 1
+  waf_mode              = var.waf_mode
 
   depends_on = [module.networking, module.nat_gateway]
-}
+} */
 
 # Container Apps Environment
 module "container_apps_env" {

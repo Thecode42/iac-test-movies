@@ -190,7 +190,7 @@ resource "azurerm_network_security_group" "nsg_app_gateway" {
     source_port_range          = "*"
     destination_port_range     = var.backend_port
     source_address_prefix      = var.subnet_appgw_prefix
-    destination_address_prefix = var.container_apps_subnet_prefix
+    destination_address_prefix = var.subnet_aca_env_prefix
   }
 
   # Permitir egress a internet (para resolucion DNS, etc)

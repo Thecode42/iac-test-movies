@@ -25,18 +25,18 @@ variable "vnet_name" {
 variable "subnet_appgw_prefix" {
   description = "CIDR para subnet del App Gateway"
   type        = string
-  validation {
+  /* validation {
     condition     = can(regex("^10\\.0\\.[0-9]+\\.0/[0-9]{2}$", var.subnet_appgw_prefix))
     error_message = "subnet_appgw_prefix debe ser un CIDR valido."
-  }
+  } */
 }
 variable "container_apps_fqdn" {
   description = "FQDN del Container Apps Environment"
   type        = string
 }
-variable "container_apps_subnet_prefix" {
-  description = "CIDR de la subnet de Container Apps"
+variable "subnet_aca_env_prefix" {
   type        = string
+  description = "CIDR para Container Apps Environment"
 }
 variable "backend_port" {
   description = "Puerto del backend en Container Apps"

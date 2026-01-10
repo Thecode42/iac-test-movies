@@ -15,3 +15,6 @@ output "subnet_apps_id" {
   description = "Container Apps subnet ID (delegated)"
   value       = azurerm_subnet.snet_apps.id
 }
+output "subnet_aca_env_cidr" {
+  value = var.subnet_aca_env_prefix
+}
