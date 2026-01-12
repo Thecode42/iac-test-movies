@@ -37,13 +37,13 @@ variable "container_port" {
 }
 
 variable "min_replicas" {
-  description = "Mínimo de replicas (0 para auto-scale a cero)"
+  description = "Minimo de replicas (0 para auto-scale a cero)"
   type        = number
   default     = 0
 }
 
 variable "max_replicas" {
-  description = "Máximo de replicas"
+  description = "Maximo de replicas"
   type        = number
   default     = 1
 }
@@ -55,7 +55,7 @@ variable "environment_variables" {
 }
 
 variable "expose_publicly" {
-  description = "Exponer públicamente (solo Frontend)"
+  description = "Exponer publicamente (solo Frontend)"
   type        = bool
   default     = false
 }

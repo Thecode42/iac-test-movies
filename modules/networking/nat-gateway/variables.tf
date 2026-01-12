@@ -28,12 +28,12 @@ variable "vnet_name" {
 }
 
 variable "subnet_apps_id" {
-  description = "ID de la subnet de Container Apps (donde se asocia el NAT)"
+  description = "ID de la subnet objetivo a la que se asociara el NAT Gateway para egress con IP fija."
   type        = string
 }
 
 variable "subnet_nat_prefix" {
-  description = "CIDR para subnet NAT Gateway"
+  description = "CIDR de la subnet auxiliar 'snet-nat' auxiliar. No es requerida por NAT Gateway."
   type        = string
   default     = "10.0.4.0/24"
   

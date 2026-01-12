@@ -1,3 +1,14 @@
+/* ============================================================================
+CONTAINER APP - Container App reutilizable para backend y frontend
+============================================================================
+* Proposito:
+*   Definir un Azure Container App reutilizable para distintos componentes (por ejemplo,
+*   frontend y backend) dentro de un mismo Container Apps Environment.
+*
+Autor: Roger Alcivar
+============================================================================
+ */
+ 
 # Container App se reutiliza para Frontend y Backend
 resource "azurerm_container_app" "app" {
   name                         = var.container_app_name

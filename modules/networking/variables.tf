@@ -3,7 +3,7 @@ variable "resource_group_name" {
     type = string 
 }
 variable "location" {
-    description = "Ubicación del recurso"
+    description = "Ubicacion del recurso"
     type = string
 }
 variable "vnet_name" { 
@@ -20,7 +20,7 @@ variable "vnet_address_space" {
 }
 variable "subnet_apps_prefix" {
   type        = string
-  description = "CIDR para Apps. MÍNIMO /23 recomendado para Container Apps"
+  description = "CIDR para la subnet delegada del ACA. Recomendado /23 o mayor."
 }
 variable "subnet_private_prefix" {
   type        = string
@@ -28,7 +28,7 @@ variable "subnet_private_prefix" {
 }
 variable "subnet_aca_env_prefix" {
   type        = string
-  description = "CIDR para Container Apps Environment"
+  description = "CIDR para subnet auxiliar."
 }
 variable "backend_internal_ports" {
   description = "Puertos internos del Backend (no expuesto a internet)"

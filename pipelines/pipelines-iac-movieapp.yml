@@ -1,0 +1,210 @@
+name: 'Terraform Deploy - Plan & Apply'
+
+trigger: none
+pr: none
+
+parameters:
+- name: environment
+  type: string
+  displayName: 'Entorno de despliegue'
+  default: dev
+  values:
+    - dev
+    - uat
+    - prod
+
+- name: location
+  type: string
+  displayName: 'Region principal de Azure'
+  default: eastus2
+  values:
+    - eastus2
+
+pool:
+  vmImage: ubuntu-latest
+variables:
+  - name: terraformVersion
+    value: 'latest'
+
+  # Configuracion del Backend
+  - name: backendServiceArm
+    value: 'sc-arc-iac'
+  - name: backendResourceGroupName
+    value: 'rg-terraform-state'
+  - name: backendStorageAccountName
+    value: 'sttfstaterogal01'
+  - name: backendContainerName
+    value: 'tfstate-${{ parameters.environment }}'
+  - name: tfStateFile
+    value: 'iac_app.tfstate'
+
+  # Configuracion target
+  - name: environmentServiceName
+    value: 'sc-arc-iac'
+  - name: workingDirectory
+    value: '$(System.DefaultWorkingDirectory)/environments/${{ parameters.environment }}/base'
+stages:
+  # Stage 1: Validacion
+  - stage: Validate
+    displayName: 'Validar Terraform sin backend - ${{ parameters.environment }}'
+    # Realiza una validacion incial sin backend por lo que se realiza con script
+    jobs:
+    - job: TerraformValidate
+      displayName: 'Validación de Sintaxis y Formato'
+      steps:
+        - task: TerraformInstaller@1
+          displayName: 'Instalar Terraform $(terraformVersion)'
+          inputs:
+            terraformVersion: $(terraformVersion)
+
+        - script: |
+            cd $(workingDirectory)
+            terraform init -backend=false
+          displayName: 'Terraform Init'
+
+        - script: |
+            cd $(workingDirectory)
+            terraform validate
+          displayName: 'Terraform Validate'
+
+        - script: |
+            cd $(workingDirectory)
+            terraform fmt -check -recursive
+          displayName: 'Terraform Format Check'
+          continueOnError: true
+
+  # Stage 2: Plan
+  - stage: Plan
+    displayName: 'Plan - ${{ parameters.environment }}'
+    dependsOn: Validate
+    condition: succeeded()
+    jobs:
+      - job: TerraformPlan
+        displayName: 'Generar Plan'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Instalar Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(backendServiceArm)'
+              backendAzureRmResourceGroupName: '$(backendResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(backendStorageAccountName)'
+              backendAzureRmContainerName: '$(backendContainerName)'
+              backendAzureRmKey: '$(tfStateFile)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Plan'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-var="environment=${{ parameters.environment }}" -var="location=${{ parameters.location }}" -out=main.tfplan -input=false'
+              environmentServiceNameAzureRM: '$(environmentServiceName)'
+
+          - script: |
+              echo "Listando archivos en: $(workingDirectory)"
+              ls -la $(workingDirectory)
+            displayName: 'Debug: Listar archivos generados'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Guardar Plan como Artifact'
+            condition: succeeded()
+            inputs:
+                pathToPublish: '$(workingDirectory)/main.tfplan'
+                artifactName: 'tfplan-${{ parameters.environment }}'
+                publishLocation: 'Container'
+  # Stage 3: Aprobacion manual            
+  - stage: ApprovalRequired
+    displayName: 'Aprobacion Manual - ${{ parameters.environment }}'
+    dependsOn: Plan
+    condition: succeeded()
+    jobs:
+      - job: ManualApproval
+        displayName: 'Esperar Aprobacion'
+        pool: server
+        timeoutInMinutes: 1440
+        steps:
+          - task: ManualValidation@0
+            displayName: 'Aprobar Deploy'
+            inputs:
+              notifyUsers: 'roger.alcivar@yahoo.com'
+              instructions: |
+                Revisa los cambios antes de aprobar.
+                Ambiente: ${{ parameters.environment }}
+                Ubicacion: ${{ parameters.location }}
+  # Stage 4: Deploy            
+  - stage: Deploy
+    displayName: 'Deploy - ${{ parameters.environment }}'
+    dependsOn: ApprovalRequired
+    condition: succeeded()
+    jobs:
+      - job: TerraformApply
+        displayName: 'Aplicar Cambios'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Instalar Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Descargar Plan'
+            inputs:
+              artifactName: 'tfplan-${{ parameters.environment }}'
+              downloadPath: '$(workingDirectory)'
+
+          - script: |
+              echo "Listando archivos en: $(workingDirectory)"
+              ls -la $(workingDirectory)
+            displayName: 'Debug: Listar archivos generados'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(backendServiceArm)'
+              backendAzureRmResourceGroupName: '$(backendResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(backendStorageAccountName)'
+              backendAzureRmContainerName: '$(backendContainerName)'
+              backendAzureRmKey: '$(tfStateFile)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Apply'
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(workingDirectory)'
+              commandOptions: '-input=false tfplan-${{ parameters.environment }}/main.tfplan'
+              environmentServiceNameAzureRM: '$(backendServiceArm)'
+
+          - script: |
+              cd $(workingDirectory)
+              terraform output -json > $(Build.ArtifactStagingDirectory)/outputs.json
+            displayName: 'Exportar Outputs'
+            condition: succeeded()
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publicar Estado Post-Apply'
+            condition: succeeded()
+            inputs:
+                pathToPublish: '$(Build.ArtifactStagingDirectory)'
+                artifactName: 'tfplan-${{ parameters.environment }}'
+                publishLocation: 'Container'
+
+          - script: |
+              cd $(workingDirectory)
+              echo "===== ESTADO FINAL DE TERRAFORM ====="
+              echo "Ambiente: ${{ parameters.environment }}"
+              echo "Ubicacion: ${{ parameters.location }}"
+              terraform show -json > $(Build.ArtifactStagingDirectory)/state.json
+              echo "Estado guardado en Azure Storage: $(backendStorageAccountName)/$(backendContainerName)/$(tfStateFile)"
+            displayName: 'Mostrar Estado Final'
+            condition: succeeded()

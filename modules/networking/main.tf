@@ -1,3 +1,14 @@
+/**
+ * -----------------------------------------------------------------------------
+ * Archivo: <main.tf | variables.tf | outputs.tf>
+ * Modulo:  <networking | nat-gateway>
+ *
+ * Proposito:
+ *   subnets y NSG/NSG rules para soportar Azure Container Apps y endpoints privados.
+ *
+ * Autor: Roger Alcivar
+ */
+ 
 # VNet Principal del proyecto
 resource "azurerm_virtual_network" "vnet" {
   name                = var.vnet_name
@@ -7,8 +18,8 @@ resource "azurerm_virtual_network" "vnet" {
   tags                = var.tags
 }
 
-# Subnet para Container Apps Environment con delegacion
-# NOTA : Container Apps se le asigna una subnet delegada a Microsoft.App/environments para la gestion automatica.
+# Subnet delegada para Azure Container Apps Environment (infra subnet).
+# NOTA : La delegacion es requisito para integrar el Environment a una VNet.
 resource "azurerm_subnet" "snet_apps" {
   name                 = "snet-container-apps"
   resource_group_name  = var.resource_group_name
@@ -23,7 +34,7 @@ resource "azurerm_subnet" "snet_apps" {
     }
   }
 }
-# Subnet para Container Apps Environment  sin delegacion
+# Subnet auxiliar para posibles workloads privados dentro de la VNet
 resource "azurerm_subnet" "snet_aca_env" {
   name                 = "snet-aca-env"
   resource_group_name  = var.resource_group_name
@@ -80,7 +91,7 @@ resource "azurerm_network_security_rule" "allow_https_inbound" {
   resource_group_name         = var.resource_group_name
   network_security_group_name = azurerm_network_security_group.nsg_apps.name
 }
-# Permitir Frontend a Backend (comunicación interna)
+# Permitir trafico interno dentro de la subnet hacia los puertos del backend.
 resource "azurerm_network_security_rule" "allow_frontend_to_backend" {
   name                        = "AllowFrontendToBackend"
   priority                    = 120
@@ -95,7 +106,7 @@ resource "azurerm_network_security_rule" "allow_frontend_to_backend" {
   network_security_group_name = azurerm_network_security_group.nsg_apps.name
 }
 
-# Permitir Backend a APIs Externas
+# Permitir egress desde workloads en la subnet hacia Internet por HTTP
 resource "azurerm_network_security_rule" "allow_backend_egress_http" {
   name                        = "AllowBackendEgressHTTP"
   priority                    = 200

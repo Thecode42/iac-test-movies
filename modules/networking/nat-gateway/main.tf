@@ -1,16 +1,14 @@
-# ============================================================================
-# NAT GATEWAY - IP Publica Estática para Egress
-# ============================================================================
-# 
-# Proposito: Proporcionar una IP publica FIJA para que el Backend acceda
-# a APIs externas. Esto permite:
-# - Whitelisting de IP en APIs externas
-# - Logs/auditoría más claros
-# - IP pública única conocida
-#
-# Arquitectura:
-# Container Apps (Backend) → NAT Gateway → Internet (IP pública fija)
-# ============================================================================
+/* ============================================================================
+NAT GATEWAY - IP Publica Estatica para Egress
+============================================================================
+
+Proposito: Proporcionar una IP publica FIJA para que el Backend acceda a APIs externas. Esto permite:
+    - Whitelisting de IP en APIs externas
+    - Logs/auditoría más claros
+    - IP publica unica conocida
+Autor: Roger Alcivar
+============================================================================
+ */
 
 # Public IP para NAT Gateway
 resource "azurerm_public_ip" "nat_gateway_pip" {
@@ -26,7 +24,7 @@ resource "azurerm_public_ip" "nat_gateway_pip" {
   })
 }
 
-# Subnet dedicada para NAT Gateway (best practice)
+# Subnet auxiliar reservada para segmentación de red o futuros componentes de egress.
 resource "azurerm_subnet" "subnet_nat_gateway" {
   name                 = "snet-nat"
   resource_group_name  = var.resource_group_name
@@ -34,7 +32,7 @@ resource "azurerm_subnet" "subnet_nat_gateway" {
   address_prefixes     = [var.subnet_nat_prefix]
 }
 
-# NAT Gateway - Egress Point para Backend
+# NAT Gateway - egress para los workloads ubicados en la subnet asociada (backend)
 resource "azurerm_nat_gateway" "nat_gateway" {
   name                = "natgw-${var.environment}-${var.location}"
   location            = var.location
@@ -56,7 +54,7 @@ resource "azurerm_nat_gateway_public_ip_association" "nat_public_ip_assoc" {
 }
 
 # Asociar NAT Gateway a la subnet de Container Apps
-# Todos los containers en esta subnet usaran el NAT Gateway para egress
+# Todos los containers en esta subnet usaran el NAT Gateway para egress usando IP Publica de NAT Gateway
 resource "azurerm_subnet_nat_gateway_association" "nat_gateway_assoc" {
   subnet_id      = var.subnet_apps_id
   nat_gateway_id = azurerm_nat_gateway.nat_gateway.id
@@ -64,7 +62,7 @@ resource "azurerm_subnet_nat_gateway_association" "nat_gateway_assoc" {
   depends_on = [azurerm_nat_gateway.nat_gateway]
 }
 
-# NSG para subnet NAT Gateway (si se usa)
+# NSG asociado a la subnet "snet-nat" auxiliar
 resource "azurerm_network_security_group" "nsg_nat_gateway" {
   name                = "nsg-nat-${var.environment}-${var.location}"
   location            = var.location
@@ -75,7 +73,7 @@ resource "azurerm_network_security_group" "nsg_nat_gateway" {
   })
 }
 
-# Asociar NSG a subnet NAT Gateway
+# Asociación del NSG a la subnet auxiliar "snet-nat" auxiliar
 resource "azurerm_subnet_network_security_group_association" "nsg_assoc_nat" {
   subnet_id              = azurerm_subnet.subnet_nat_gateway.id
   network_security_group_id = azurerm_network_security_group.nsg_nat_gateway.id

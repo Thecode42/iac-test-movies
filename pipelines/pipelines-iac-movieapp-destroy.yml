@@ -1,0 +1,230 @@
+name: 'Terraform Destroy - Elimina todos los recursos'
+
+trigger: none
+pr: none
+
+parameters:
+- name: environment
+  type: string
+  displayName: 'Entorno de despliegue'
+  default: dev
+  values:
+    - dev
+    - uat
+    - prod
+
+- name: location
+  type: string
+  displayName: 'Region principal de Azure'
+  default: eastus2
+  values:
+    - eastus2
+
+pool:
+  vmImage: ubuntu-latest
+variables:
+  - name: terraformVersion
+    value: 'latest'
+
+  # Configuracion del Backend
+  - name: backendServiceArm
+    value: 'sc-arc-iac'
+  - name: backendResourceGroupName
+    value: 'rg-terraform-state'
+  - name: backendStorageAccountName
+    value: 'sttfstaterogal01'
+  - name: backendContainerName
+    value: 'tfstate-${{ parameters.environment }}'
+  - name: tfStateFile
+    value: 'iac_app.tfstate'
+
+  # Configuracion target
+  - name: environmentServiceName
+    value: 'sc-arc-iac'
+  - name: workingDirectory
+    value: '$(System.DefaultWorkingDirectory)/environments/${{ parameters.environment }}/base'
+stages:
+  # Stage 1: Confirmacion de Destruir recursos
+  - stage: DestroyConfirmation
+    displayName: 'CONFIRMACION - Destruir Recursos - ${{ parameters.environment }}'
+    # Agregar los correos necesarios para alertar del destroy
+    jobs:
+    - job: RiskAssessment
+      displayName: 'Evaluacion de Riesgo'
+      pool: server
+      timeoutInMinutes: 30
+      steps:
+        - task: ManualValidation@0
+          displayName: 'APROBACION CRITICA - DESTROY - ${{ parameters.environment }}'
+          inputs:
+            notifyUsers: 'roger.alcivar@yahoo.com'
+            instructions: |
+              ** OPERACION DE ELIMINACION DE RECURSOS **
+              Recursos a destruir del proyecto moviespp:
+              - Virtual Network: vnet-moviesapp
+              - Subnets: Container Apps, Private Endpoints
+              - Network Security Groups
+              - Todas las configuraciones de red asociadas
+              - Ambiente: ${{ parameters.environment }}
+              - Ubicacion: ${{ parameters.location }}
+
+              Importante: Identificar claramente el proceso y verificar e informar al equipo.
+
+              Nota: Esta es la primera aprobacion antes de la eliminacion final
+
+              Para continuar, escribe: **DESTROY-$(System.TeamProject)**
+            onTimeout: 'reject'
+
+  # Stage 2: Destroy Plan
+  - stage: DestroyPlan
+    displayName: 'Mostrar Cambios (Destroy)'
+    dependsOn: DestroyConfirmation
+    condition: succeeded()
+    jobs:
+      - job: TerraformDestroyPlan
+        displayName: 'Terraform Destroy Plan - ${{ parameters.environment }}'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Instalar Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(backendServiceArm)'
+              backendAzureRmResourceGroupName: '$(backendResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(backendStorageAccountName)'
+              backendAzureRmContainerName: '$(backendContainerName)'
+              backendAzureRmKey: '$(tfStateFile)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Plan -destroy'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-destroy -var="environment=${{ parameters.environment }}" -var="location=${{ parameters.location }}" -out=main-destroy.tfplan -input=false'
+              environmentServiceNameAzureRM: '$(environmentServiceName)'
+          
+          - script: |
+              cd $(workingDirectory)
+              echo "  PLAN DE ELIMINACION (terraform destroy)"
+              echo "=========================================="
+              terraform show main-destroy.tfplan
+              echo ""
+              echo "=========================================="
+              echo "NOTA: Estos cambios serán aplicados si se apruebaa en la siguiente etapa"
+              echo "=========================================="
+            displayName: 'Mostrar Plan de eliminacion'
+            condition: succeeded()
+
+          - script: |
+              echo "Listando archivos en: $(workingDirectory)"
+              ls -la $(workingDirectory)
+            displayName: 'Debug: Listar archivos generados'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Guardar Plan como Artifact'
+            condition: succeeded()
+            inputs:
+              pathToPublish: '$(workingDirectory)/main-destroy.tfplan'
+              artifactName: 'tfplan-destroy-${{ parameters.environment }}'
+              publishLocation: 'Container'
+  # Stage 3: Aprobacion Final            
+  - stage: FinalDestroyApproval
+    displayName: 'APROBACION FINAL - PUNTO DE NO RETORNO - ${{ parameters.environment }}'
+    # Agregar los correos necesarios para alertar del destroy
+    dependsOn: DestroyPlan
+    condition: succeeded()
+    jobs:
+      - job: FinalApproval
+        displayName: 'Ultima notificacion de eliminacion de recursos'
+        pool: server
+        timeoutInMinutes: 60
+        steps:
+        - task: ManualValidation@0
+          displayName: 'ULTIMA APROBACION CRITICA - DESTROY'
+          inputs:
+            notifyUsers: 'roger.alcivar@yahoo.com'
+            instructions: |
+              ** OPERACION DE ELIMINACION DE RECURSOS **
+              
+              Importante: Revisar el plan en el paso anterior
+
+              Nota: Esta es la primera aprobacion antes de la eliminacion final
+
+              Para continuar, escribe: **DESTROY-$(System.TeamProject)**
+            onTimeout: 'reject'
+  # Stage 4: Ejecucion de Destruccion      
+  - stage: ExecuteDestroy
+    displayName: 'DESTROY - Eliminando Recursos - ${{ parameters.environment }}'
+    dependsOn: FinalDestroyApproval
+    condition: succeeded()
+    jobs:
+      - job: TerraformDestroy
+        displayName: 'Ejecutar Terraform Destroy'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: 'Instalar Terraform $(terraformVersion)'
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Descargar Plan'
+            inputs:
+              artifactName: 'tfplan-destroy-${{ parameters.environment }}'
+              downloadPath: '$(workingDirectory)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Init'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(backendServiceArm)'
+              backendAzureRmResourceGroupName: '$(backendResourceGroupName)'
+              backendAzureRmStorageAccountName: '$(backendStorageAccountName)'
+              backendAzureRmContainerName: '$(backendContainerName)'
+              backendAzureRmKey: '$(tfStateFile)'
+
+          - task: TerraformTaskV4@4
+            displayName: 'Terraform Destroy - Eliminando recursos'
+            inputs:
+              workingDirectory: $(workingDirectory)
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false tfplan-destroy-${{ parameters.environment }}/main-destroy.tfplan'
+              environmentServiceNameAzureRM: '$(environmentServiceName)'
+          
+          - script: |
+              cd $(workingDirectory)
+              echo "  ELIMINACION DE RECURSOS COMPLETADA"
+              echo "=========================================="
+              echo "Estado actual:"
+              terraform state list
+              echo ""
+              echo "Timestamp: $(date)"
+              echo "Ejecutado por: $(Build.RequestedFor)"
+              echo "Build ID: $(Build.BuildId)"
+              echo ""
+              echo "Estado guardado en: $(backendStorageAccountName)/$(backendContainerName)/$(tfStateFile)"
+            displayName: 'Registro de eliminacion'
+            condition: succeeded()
+
+          - script: |
+              cd $(workingDirectory)
+              terraform show -json > $(Build.ArtifactStagingDirectory)/destroy-state.json
+            displayName: 'Guardar Estado Post-Destroy'
+            condition: succeeded()
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publicar Estado Post-Destroy'
+            condition: succeeded()
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)'
+              artifactName: 'destroy-state-$(System.JobId)'
+              publishLocation: 'Container'
